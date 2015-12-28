@@ -134,7 +134,7 @@ class SVGRenderer
           else
           {
              var style = new format.gfx.LineStyle();
-             var scale = Math.sqrt(m.a*m.a + m.c*m.c);
+             var scale = Math.sqrt(m.a*m.a + m.d*m.d);
              style.thickness = inPath.stroke_width*scale;
              style.alpha = inPath.stroke_alpha*inPath.alpha;
              style.color = inPath.stroke_colour;
@@ -149,8 +149,13 @@ class SVGRenderer
        for(segment in inPath.segments)
           segment.toGfx(mGfx, context);
 
+
+       // endFill automatically close an open path
+       // by putting endLineStyle before endFill, the closing line is not drawn
+       // so an open path in inkscape stay open in openfl
+       // this does not affect closed path
+       mGfx.endLineStyle(); 
        mGfx.endFill();
-       mGfx.endLineStyle();
     }
 
 

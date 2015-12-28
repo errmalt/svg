@@ -27,8 +27,8 @@ typedef StringMap<T> = Hash<T>;
 class SVGData extends Group {
 	
 	
-	private static var SIN45:Float = 0.70710678118654752440084436210485;
-	private static var TAN22:Float = 0.4142135623730950488016887242097;
+	private static inline var SIN45:Float = 0.70710678118654752440084436210485;
+	private static inline var TAN22:Float = 0.4142135623730950488016887242097;
 	private static var mStyleSplit = ~/;/g;
 	private static var mStyleValue = ~/\s*(.*)\s*:\s*(.*)\s*/;
 	private static var mTranslateMatch = ~/translate\((.*)[, ](.*)\)/;
@@ -68,8 +68,25 @@ class SVGData extends Group {
 		else if (height == 0)
 			height = width;
 
-		loadGroup(this, svg, new Matrix (), null);
+		var viewBox = new Rectangle(0, 0, width, height);
+
+		if (svg.exists("viewBox")) {
+
+			var vbox = svg.get("viewBox");
+			var params = vbox.indexOf(",") != -1 ? vbox.split(",") : vbox.split(" ");
+			viewBox = new Rectangle( trimToFloat(params[0]), trimToFloat(params[1]), trimToFloat(params[2]), trimToFloat(params[3]) );
+
+		}
+
+		loadGroup(this, svg, new Matrix (1, 0, 0, 1, -viewBox.x, -viewBox.y), null);
 		
+	}
+
+
+	inline function trimToFloat (value:String) {
+
+		return Std.parseFloat( StringTools.trim(value) );
+
 	}
 	
 	
@@ -231,6 +248,21 @@ class SVGData extends Group {
 		
 	}
 	
+	
+	private function getStyleAndConvert<T>(inKey:String, inNode:Xml, inStyles:StringMap<String>, inDefault:T, inConvert:StringMap<T>) : T {
+		
+		var s = getStyle (inKey, inNode, inStyles, "");
+		
+		if (s == "" || !inConvert.exists(s)) {
+			
+			return inDefault;
+		
+		}
+		
+		return inConvert.get(s);
+		
+	}
+
 
 	private function getStrokeStyle (inKey:String, inNode:Xml, inStyles:StringMap <String>, inDefault:Null<Int>) {
 		
@@ -439,7 +471,30 @@ class SVGData extends Group {
 		}
 		
 		var styles = getStyles (inG, inStyles);
-		
+
+		/*
+		supports eg:
+		<g>
+			<g opacity="0.5">
+				<path ... />
+				<polygon ... />
+			</g>
+		</g>
+		*/
+		if (inG.exists("opacity")) {
+
+			var opacity = inG.get("opacity");
+
+			if (styles == null)
+				styles = new StringMap<String>();
+
+			if (styles.exists("opacity"))
+				opacity = Std.string( Std.parseFloat(opacity) * Std.parseFloat(styles.get("opacity")) );
+			
+			styles.set("opacity", opacity);
+
+		}
+
 		for (el in inG.elements ()) {
 			
 			var name = el.nodeName;
@@ -526,8 +581,10 @@ class SVGData extends Group {
 		path.stroke_alpha = getFloatStyle ("stroke-opacity", inPath, styles, 1.0);
 		path.stroke_colour = getStrokeStyle ("stroke", inPath, styles, null);
 		path.stroke_width = getFloatStyle ("stroke-width", inPath, styles, 1.0);
-		path.stroke_caps = CapsStyle.ROUND;
-		path.joint_style = JointStyle.ROUND;
+		path.stroke_caps = getStyleAndConvert ("stroke-linecap", inPath, styles, null, 
+			["round" => CapsStyle.ROUND, "square" => CapsStyle.SQUARE, "butt" => CapsStyle.NONE]);
+		path.joint_style = getStyleAndConvert ("stroke-linejoin", inPath, styles, null, 
+			["bevel" => JointStyle.BEVEL, "round" => JointStyle.ROUND, "miter" => JointStyle.MITER]);
 		path.miter_limit = getFloatStyle ("stroke-miterlimit", inPath, styles, 3.0);
 		path.segments = [];
 		path.matrix = matrix;
@@ -638,6 +695,7 @@ class SVGData extends Group {
 		text.font_size = getFloatStyle ("font-size", inText, styles, 12);
 		text.letter_spacing = getFloatStyle ("letter-spacing", inText, styles, 0);
 		text.kerning = getFloatStyle ("kerning", inText, styles, 0);
+		text.text_align = getStyle ("text-align", inText, styles, "start");
 
 		var string = "";
 		
